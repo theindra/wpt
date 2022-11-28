@@ -1004,7 +1004,27 @@
          */
         get_virtual_sensor_information: function(sensor_type, context=null) {
             return window.test_driver_internal.get_virtual_sensor_information(sensor_type, context);
-        }
+        },
+        /*
+         * Consumes the user activation
+         *
+         * Matches the consume-user-activation WebDriver command:
+         * https://html.spec.whatwg.org/#user-activation-user-agent-automation
+         *
+         * Which corresponds to these steps in HTML:
+         * https://html.spec.whatwg.org/#consume-user-activation
+         *
+         * @example
+         * await test_driver.consume_user_activation();
+         * await test_driver.consume_user_activation(iframe.contentWindow);
+         *
+         * @param {WindowProxy?} [context=null] - Browsing context in which to run the
+         *                                        call.
+         * @returns {Promise<boolean>} fulfilled when user activation is consumed.
+         */
+        consume_user_activation(context=null) {
+            return window.test_driver_internal.consume_user_activation(context);
+        },
     };
 
     window.test_driver_internal = {
@@ -1180,6 +1200,10 @@
 
         async get_virtual_sensor_information(sensor_type, context=null) {
             throw new Error("get_virtual_sensor_information() is not implemented by testdriver-vendor.js");
-        }
+        },
+
+        async consume_user_activation () {
+            throw new Error("Consume_user_activation() is not implemented by testdriver-vendor.js");
+        },
     };
 })();

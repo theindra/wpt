@@ -35,6 +35,7 @@ from .protocol import (BaseProtocolPart,
                        RPHRegistrationsProtocolPart,
                        FedCMProtocolPart,
                        VirtualSensorProtocolPart,
+                       UserActivationProtocolPart,
                        merge_dicts)
 
 from webdriver.client import Session
@@ -425,6 +426,13 @@ class WebDriverVirtualSensorPart(VirtualSensorProtocolPart):
         return self.webdriver.send_session_command("GET", "sensor/%s" % sensor_type)
 
 
+class WebDriverUserActivationPart(UserActivationProtocolPart):
+    def setup(self):
+        self.webdriver = self.parent.webdriver
+
+    def consume_user_activation():
+        return self.webdriver.send_session_command("POST", "consume-user-activation")
+
 class WebDriverProtocol(Protocol):
     implements = [WebDriverBaseProtocolPart,
                   WebDriverTestharnessProtocolPart,
@@ -443,7 +451,9 @@ class WebDriverProtocol(Protocol):
                   WebDriverRPHRegistrationsProtocolPart,
                   WebDriverFedCMProtocolPart,
                   WebDriverDebugProtocolPart,
-                  WebDriverVirtualSensorPart]
+                  WebDriverVirtualSensorPart,
+                  WebDriverUserActivationPart,
+                  ]
 
     def __init__(self, executor, browser, capabilities, **kwargs):
         super().__init__(executor, browser)
