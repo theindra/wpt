@@ -120,6 +120,13 @@
         test(function() {
             assert_equals(ruleWithSupports.supportsText, "(display: flex) or (display: block)");
         }, "Value of CSSImportRule supportsText attribute");
+
+        test(function() {
+            assert_true(ruleWithSupports.styleSheet instanceof CSSStyleSheet);
+            assert_true(ruleWithQuote.styleSheet instanceof CSSStyleSheet);
+            assert_equals(ruleWithSupports.styleSheet, null);
+            assert_equals(ruleWithQuoteSupports.styleSheet, null);
+        }, "Value of CSSImportRule styleSheet is nullable");
     </script>
 </body>
 </html>
