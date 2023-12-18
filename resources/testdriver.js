@@ -1203,7 +1203,7 @@
             throw new Error("get_virtual_sensor_information() is not implemented by testdriver-vendor.js");
         },
 
-        async consume_user_activation () {
+        async consume_user_activation() {
             throw new Error("consume_user_activation() is not implemented by testdriver-vendor.js");
         },
     };
