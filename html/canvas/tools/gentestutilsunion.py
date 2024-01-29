@@ -28,7 +28,7 @@
 #
 # * Test the tests, add new ones to Git, remove deleted ones from Git, etc.
 
-from typing import Any, List, Mapping, Optional, Set, Tuple
+from typing import Any, DefaultDict, List, Mapping, Optional, Set, Tuple
 
 import re
 import collections
@@ -377,12 +377,16 @@ def _write_testharness_test(jinja_env: jinja2.Environment,
 
 
 def _generate_test(test: Mapping[str, Any], jinja_env: jinja2.Environment,
-                   sub_dir: str, enabled_tests: Set[CanvasType],
+                   name_to_sub_dir: Mapping[str, str],
+                   used_tests: DefaultDict[str, Set[CanvasType]],
                    html_canvas_cfg: TestConfig,
                    offscreen_canvas_cfg: TestConfig) -> None:
     _validate_test(test)
 
     name = test['name']
+
+    sub_dir = _get_test_sub_dir(name, name_to_sub_dir)
+    enabled_canvas_types = _get_enabled_canvas_types(test)
 
     expected_img = None
     if 'expected' in test and test['expected'] is not None:
@@ -399,14 +403,15 @@ def _generate_test(test: Mapping[str, Any], jinja_env: jinja2.Environment,
                 r'surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, \1, \2)'
                 r'\ncr = cairo.Context(surface)', expected)
 
-            if CanvasType.HTML_CANVAS in enabled_tests:
+            if CanvasType.HTML_CANVAS in enabled_canvas_types:
                 expected_canvas = (
                     expected + "\nsurface.write_to_png('%s.png')\n" %
                     os.path.join(html_canvas_cfg.image_out_dir, sub_dir, name))
                 eval(compile(expected_canvas, '<test %s>' % name, 'exec'), {},
                     {'cairo': cairo})
 
-            if {CanvasType.OFFSCREEN_CANVAS, CanvasType.WORKER} & enabled_tests:
+            if {CanvasType.OFFSCREEN_CANVAS, CanvasType.WORKER
+                } & enabled_canvas_types:
                 expected_offscreen = (
                     expected +
                     "\nsurface.write_to_png('%s.png')\n" % os.path.join(
@@ -428,6 +433,16 @@ def _generate_test(test: Mapping[str, Any], jinja_env: jinja2.Environment,
         'expected_img': expected_img
     })
 
+    # Render parameters used in the test name.
+    name = jinja_env.from_string(name).render(params)
+    print('\r(%s)' % name, ' ' * 32, '\t')
+
+    already_tested = used_tests[name].intersection(enabled_canvas_types)
+    if already_tested:
+        raise InvalidTestDefinitionError(
+            f'Test {name} is defined twice for types {already_tested}')
+    used_tests[name].update(enabled_canvas_types)
+
     canvas_path = os.path.join(html_canvas_cfg.out_dir, sub_dir, name)
     offscreen_path = os.path.join(offscreen_canvas_cfg.out_dir, sub_dir, name)
     if 'manual' in test:
@@ -435,11 +450,55 @@ def _generate_test(test: Mapping[str, Any], jinja_env: jinja2.Environment,
         offscreen_path += '-manual'
 
     if 'reference' in test or 'html_reference' in test:
-        _write_reference_test(jinja_env, params, enabled_tests,
+        _write_reference_test(jinja_env, params, enabled_canvas_types,
                               canvas_path, offscreen_path)
     else:
-        _write_testharness_test(jinja_env, params, enabled_tests, canvas_path,
-                                offscreen_path)
+        _write_testharness_test(jinja_env, params, enabled_canvas_types,
+                                canvas_path, offscreen_path)
+
+
+def _recursive_expand_variant_matrix(test_list: List[Mapping[str, Any]],
+                                     variant_matrix: List[Mapping[str, Any]],
+                                     current_selection: List[Tuple[str, Any]],
+                                     original_test: Mapping[str, Any]):
+    if len(current_selection) == len(variant_matrix):
+        # Selection for each variant is done, so add a new test to test_list.
+        test = original_test.copy()
+        variant_name_list = []
+        should_append_variant_names = original_test.get(
+            'append_variants_to_name', True)
+        for variant_name, variant_params in current_selection:
+            variant_name_list.append(variant_name)
+            # Append variant name. Variant names starting with '_' are
+            # not appended, which is useful to create variants with the same
+            # name in different folders (element vs. offscreen).
+            if (should_append_variant_names
+                    and not variant_name.startswith('_')):
+                test['name'] += '.' + variant_name
+            test.update(variant_params)
+            # Expose variant names as a list so they can be used from the yaml
+            # files, which helps with better naming of tests.
+            test.update({'variant_names': variant_name_list})
+        test_list.append(test)
+    else:
+        # Continue the recursion with each possible selection for the current
+        # variant.
+        variant = variant_matrix[len(current_selection)]
+        for variant_options in variant.items():
+            current_selection.append(variant_options)
+            _recursive_expand_variant_matrix(test_list, variant_matrix,
+                                             current_selection, original_test)
+            current_selection.pop()
+
+
+def _expand_variant_matrix(
+        variant_matrix: List[Mapping[str, Any]],
+        original_test: Mapping[str, Any]) -> List[Mapping[str, Any]]:
+    current_selection = []
+    matrix_tests = []
+    _recursive_expand_variant_matrix(matrix_tests, variant_matrix,
+                                     current_selection, original_test)
+    return matrix_tests
 
 
 def genTestUtils_union(NAME2DIRFILE: str) -> None:
@@ -495,41 +554,25 @@ def genTestUtils_union(NAME2DIRFILE: str) -> None:
             pass  # Ignore if it already exists,
 
     used_tests = collections.defaultdict(set)
-    for original_test in tests:
-        variants = original_test.get('variants', {'': dict()})
-        for variant_name, variant_params in variants.items():
-            test = original_test.copy()
-            if variant_name or variant_params:
-                # Append variant name. Variant names starting with '_' are
-                # not appended, which is useful to create variants with the same
-                # name in different folders (element vs. offscreen).
-                if not variant_name.startswith('_'):
-                    test['name'] += '.' + variant_name
-                test.update(variant_params)
+    for test in tests:
+        if 'variant_matrix' in test:
+            variants = _expand_variant_matrix(test['variant_matrix'], test)
+        elif 'variants' in test:
+            variant_matrix = [test['variants']]
+            variants = _expand_variant_matrix(variant_matrix, test)
+        else:
+            variants = [test]
 
-            name = test['name']
-            print('\r(%s)' % name, ' ' * 32, '\t')
-
-            enabled_canvas_types = _get_enabled_canvas_types(test)
-
-            already_tested = used_tests[name].intersection(
-                enabled_canvas_types)
-            if already_tested:
-                raise InvalidTestDefinitionError(
-                    f'Test {name} is defined twice for types {already_tested}')
-            used_tests[name].update(enabled_canvas_types)
-
-            sub_dir = _get_test_sub_dir(name, name_to_sub_dir)
-            _generate_test(
-                test,
-                jinja_env,
-                sub_dir,
-                enabled_canvas_types,
-                html_canvas_cfg=TestConfig(
-                    out_dir=CANVASOUTPUTDIR,
-                    image_out_dir=CANVASIMAGEOUTPUTDIR),
-                offscreen_canvas_cfg=TestConfig(
-                    out_dir=OFFSCREENCANVASOUTPUTDIR,
-                    image_out_dir=OFFSCREENCANVASIMAGEOUTPUTDIR))
+        for variant in variants:
+            _generate_test(variant,
+                           jinja_env,
+                           name_to_sub_dir,
+                           used_tests,
+                           html_canvas_cfg=TestConfig(
+                               out_dir=CANVASOUTPUTDIR,
+                               image_out_dir=CANVASIMAGEOUTPUTDIR),
+                           offscreen_canvas_cfg=TestConfig(
+                               out_dir=OFFSCREENCANVASOUTPUTDIR,
+                               image_out_dir=OFFSCREENCANVASIMAGEOUTPUTDIR))
 
     print()
