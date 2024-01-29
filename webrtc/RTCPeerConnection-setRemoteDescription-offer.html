@@ -303,8 +303,18 @@
     t.add_cleanup(() => pc1.close());
     t.add_cleanup(() => pc2.close());
     await pc1.setLocalDescription(await pc1.createOffer());
+    const state_promise = new Promise(r => pc1.onsignalingstatechange = r);
+    // SRD with invalid SDP causes rollback.
     const p = pc1.setRemoteDescription({type: 'offer', sdp: 'Invalid SDP'});
-    await new Promise(r => pc1.onsignalingstatechange = r);
+    // Ensure that the test will fail rather than timing out if state
+    // does not change.
+    const timeout_promise = new Promise(
+    (resolve, reject) => t.step_timeout(reject, 1000));
+    try {
+      await Promise.any(state_promise, timeout_promise);
+    } catch (error) {
+      assert_unreached('State should have changed');
+    }
     assert_equals(pc1.signalingState, 'stable');
     assert_equals(pc1.pendingLocalDescription, null);
     assert_equals(pc1.pendingRemoteDescription, null);
