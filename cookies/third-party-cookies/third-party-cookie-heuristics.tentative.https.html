@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <meta charset="utf-8"/>
 <meta name="timeout" content="long">
-<title>Test third-party cookies</title>
-<title>Test partitioned cookies</title>
+<title>Test third-party cookie heuristics</title>
 <script src="/resources/testharness.js"></script>
 <script src="/resources/testharnessreport.js"></script>
 <script src="/common/get-host-info.sub.js"></script>
@@ -38,30 +37,10 @@ document.body.onload = async () => {
     cookieNames.push(cookieStoreCookieName);
   }
 
-  // Test that the cookie is available in a first-party context via HTTP.
-  testHttpCookies({
-    desc: "1P window",
-    origin: self.origin,
-    cookieNames,
-    expectsCookie: true,
-  });
-
-  // // Verify that the cookies are available to the DOM as well.
-  testDomCookies({
-    desc: "1P window",
-    cookieNames,
-    expectsCookie: true,
-  });
-  testCookieStoreCookies({
-    desc: "1P window",
-    cookieNames,
-    expectsCookie: true,
-  });
-
   // Open a cross-site window which will embed the current origin in a
   // third-party context.
   const crossSiteUrl = new URL(
-      `./resources/third-party-cookies-cross-site-embedder.html?origin=${
+      `./resources/third-party-cookies-cross-site-popup-opener.html?origin=${
           encodeURIComponent(self.origin)}`,
       get_host_info().HTTPS_NOTSAMESITE_ORIGIN + self.location.pathname);
   const popup = window.open(crossSiteUrl);
