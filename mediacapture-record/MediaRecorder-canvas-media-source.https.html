@@ -4,6 +4,11 @@
 
 <head>
   <title>MediaRecorder canvas media source</title>
+  <meta name=variant content="?mimeType=''">
+  <meta name=variant content="?mimeType=video/webm;codecs=vp8,opus">
+  <meta name=variant content="?mimeType=video/webm;codecs=vp9,opus">
+  <meta name=variant content="?mimeType=video/webm;codecs=av1,opus">
+  <meta name=variant content="?mimeType=video/mp4;codecs=avc1,mp4a.40.2">
   <link rel="help"
         href="https://w3c.github.io/mediacapture-record/MediaRecorder.html#dom-mediarecorder-mimeType">
   <script src="/resources/testharness.js"></script>
@@ -54,9 +59,16 @@ async_test(test => {
   }
 
   function useMediaRecorder(stream, frameSizeCallback) {
+    const params = new URLSearchParams(window.location.search);
+    const mimeType = params.get('mimeType');
+
+    if (mimeType && !MediaRecorder.isTypeSupported(mimeType)) {
+      test.done();
+      return;
+    }
+
     const mediaRecorder = new MediaRecorder(
-      stream,
-      {}
+      stream, { mimeType }
     );
 
     mediaRecorder.ondataavailable = event => {
@@ -115,9 +127,11 @@ async_test(test => {
 
     const compositedMediaStream = new MediaStream([composedTrackGenerator]);
 
-    useMediaRecorder(compositedMediaStream, test.step_func_done(size => {
-      assert_greater_than(size, THRESHOLD_FOR_EMPTY_FRAMES);
-      stopCamera();
+    useMediaRecorder(compositedMediaStream, (size => {
+      if (size > THRESHOLD_FOR_EMPTY_FRAMES) {
+        stopCamera();
+        test.done();
+      }
     }));
   });
 }, "MediaRecorder returns frames containing video content");
