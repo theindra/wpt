@@ -590,6 +590,41 @@
   reference:
     ctx.fillRect(10, 10, 75, 50);
 
+- name: 2d.layer.drawImage
+  size: [200, 200]
+  desc: >-
+    Checks that drawImage writes the image to the layer and not the parent
+    directly.
+  code: |
+    const canvas_image = new OffscreenCanvas(200,200);
+    const ctx_image = canvas_image.getContext('2d');
+
+    ctx_image.fillStyle = 'maroon';
+    var circle = new Path2D();
+    circle.arc(90, 90, 45, 0, 2 * Math.PI);
+    ctx_image.fill(circle);
+
+    ctx_image.strokeStyle = 'orange';
+    ctx_image.strokeRect(20, 20, 70, 70);
+
+    ctx.beginLayer({filter: {name: 'dropShadow', dx: -10, dy: -10, stdDeviation: 0, floodColor: 'blue'}});
+
+    ctx.drawImage(canvas_image, 0, 0);
+
+    ctx.endLayer();
+  reference: |
+    ctx.beginLayer({filter: {name: 'dropShadow', dx: -10, dy: -10, stdDeviation: 0, floodColor: 'blue'}});
+
+    ctx.fillStyle = 'maroon';
+    var circle = new Path2D();
+    circle.arc(90, 90, 45, 0, 2 * Math.PI);
+    ctx.fill(circle);
+
+    ctx.strokeStyle = 'orange';
+    ctx.strokeRect(20, 20, 70, 70);
+
+    ctx.endLayer();
+
 - name: 2d.layer.valid-calls
   desc: No exception raised on {{ variant_desc }}.
   variants:
