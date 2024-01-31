@@ -7,24 +7,39 @@
 <script>
 'use strict';
 
-sensor_test(async (t, sensorProvider) => {
+promise_test(async (t) => {
+  const helper = new TestHelper(t, 'devicemotion');
+  await helper.grantSensorsPermissions();
+  await helper.initializeSensors();
+
   const motionData = generateMotionData(1, 2, 3,
                                         4, 5, 6,
                                         7, 8, 9);
-  setMockMotionData(sensorProvider, motionData);
+  await helper.setData(motionData);
 
   return new Promise((resolve, reject) => {
     let result = reject;
-    window.addEventListener('devicemotion', event1 => {
+    window.addEventListener('devicemotion', async event1 => {
       // Now we are in event dispatch.
       assertEventEquals(event1, getExpectedMotionEvent(motionData));
+
+      // This function is being run after the event listener has already been
+      // removed due to {once: true}, so there is no guarantee that the backing
+      // sensors are active and providing valid values.
+      //
+      // Call setData() again to ensure that the readings we want are going to
+      // be sent when the next event listener is added and the backing sensors
+      // are guaranteed to be running again.
+      await helper.setData(motionData);
+
       window.addEventListener('devicemotion', event2 => {
-        // Not call until the outer function returns.
+        // Not called until the outer function returns.
         assertEventEquals(event2, getExpectedMotionEvent(motionData));
         result();
-      });
-    });
-    result = resolve;
+      }, {once: true});
+
+      result = resolve;
+    }, {once: true});
   });
 }, 'Test no fire listeners added during event dispatch.');
 </script>

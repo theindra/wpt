@@ -7,7 +7,11 @@
 <script>
 'use strict';
 
-sensor_test(async (t, sensorProvider) => {
+promise_test(async (t) => {
+  const helper = new TestHelper(t, 'devicemotion');
+  await helper.grantSensorsPermissions();
+  await helper.initializeSensors();
+
   const motionData = generateMotionData(1.1, 2.1, 3.1,
                                         1.2, 2.2, 3.2,
                                         1.3, 2.3, 3.3);
@@ -21,10 +25,10 @@ sensor_test(async (t, sensorProvider) => {
       assert_equals(event.type, 'devicemotion', 'event.type is devicemotion');
       assert_true(event.target instanceof Window, 'event is fired on the window object');
       assertEventEquals(event, getExpectedMotionEvent(motionData));
-      window.removeEventListener('devicemotion', firstListener);
       if (++firstEventCount == 1) {
         window.addEventListener('devicemotion', secondListener);
       }
+      window.removeEventListener('devicemotion', firstListener);
       resolve(event);
     };
   });
@@ -39,7 +43,7 @@ sensor_test(async (t, sensorProvider) => {
     };
   });
 
-  setMockMotionData(sensorProvider, motionData);
+  await helper.setData(motionData);
   window.addEventListener('devicemotion', firstListener);
   await firstPromise;
   await secondPromise;

@@ -7,7 +7,11 @@
 <script>
 'use strict';
 
-sensor_test(async (t, sensorProvider) => {
+promise_test(async (t) => {
+  const helper = new TestHelper(t, 'deviceorientation');
+  await helper.grantSensorsPermissions();
+  await helper.initializeSensors();
+
   const orientationData = generateOrientationData(1.1, 2.2, 3.3, false);
 
   let firstListener = null;
@@ -37,9 +41,10 @@ sensor_test(async (t, sensorProvider) => {
     };
   });
 
-  setMockOrientationData(sensorProvider, orientationData);
+  await helper.setData(orientationData);
   window.addEventListener('deviceorientation', firstListener);
   await firstPromise;
+  await helper.setData(orientationData);
   await secondPromise;
   assert_equals(firstEventCount, 1, "Too many events fired for the first listener");
   assert_equals(secondEventCount, 1, "Too many events fired for the second listener");

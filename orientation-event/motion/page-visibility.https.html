@@ -10,12 +10,16 @@
 <script>
 'use strict';
 
-sensor_test(async (t, sensorProvider) => {
+promise_test(async (t) => {
+  const helper = new TestHelper(t, 'devicemotion');
+  await helper.grantSensorsPermissions();
+  await helper.initializeSensors();
+
   const motionData = generateMotionData(0, 0, 0,
                                         0, 0, 0,
                                         0, 0, 0);
 
-  setMockMotionData(sensorProvider, motionData);
+  await helper.setData(motionData);
   const event = getExpectedMotionEvent(motionData);
   await waitForEvent(event);
 
@@ -36,12 +40,16 @@ sensor_test(async (t, sensorProvider) => {
       { once: true });
   });
 
+  // While document is hidden new values are ignored, but will be sent once the
+  // page is visible again.
+  const promise = waitForEvent(event);
+  await helper.setData(motionData);
   // devicemotion events fire every 16ms when active, so we sleep for a while
   // here to make sure we're not actually getting any events.
   await new Promise(resolve => { t.step_timeout(resolve, 100); });
   await restore();
   assert_false(document.hidden);
-  return Promise.all([hiddenEventPromise, waitForEvent(event)]);
+  return Promise.all([hiddenEventPromise, promise]);
 }, 'Tests to check that devicemotion events are not fired when the page is not visible.');
 </script>
 </body>
